@@ -1,15 +1,41 @@
-# Byte-compiled / optimized / DLL files
+# Arquivos de cache do Python
 __pycache__/
 *.py[cod]
-*.so
+*.pyo
+*.pyd
+*.pyc
 
-# Virtual environments
+# Arquivos de ambiente virtual
+.env/
+.venv/
 env/
 venv/
 
-# Streamlit cache
-.streamlit/
+# Arquivos do Streamlit
+.streamlit/config.toml
 
-# System files
+# Arquivos temporários e de sistema
 .DS_Store
 Thumbs.db
+
+# Arquivos de execução
+*.log
+*.sqlite3
+*.db
+*.bak
+*.tmp
+
+# Imagens temporárias de upload
+uploads/
+capturas/
+*.jpg
+*.jpeg
+*.png
+
+# Arquivos gerados por IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# Arquivos do sistema operacional
+*.swp
