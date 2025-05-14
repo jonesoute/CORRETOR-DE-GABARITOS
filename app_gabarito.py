@@ -34,7 +34,7 @@ def show_home():
         st.session_state.base_image = image
         aligned = align_image(np.array(image))
         st.session_state.aligned_base = aligned
-        st.image(aligned, caption="Imagem Alinhada", use_column_width=True)
+        st.image(imagem_alinhada, channels="BGR", use_container_width=True)
 
         st.markdown("---")
         st.subheader("Toque para marcar as alternativas corretas")
