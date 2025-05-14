@@ -19,6 +19,10 @@ if "coords_map" not in st.session_state:
 # Função auxiliar para alinhar a imagem
 @st.cache_data(show_spinner=False)
 def align_image(image):
+    # Corrigir rotação se imagem estiver em retrato
+    if image.shape[0] > image.shape[1]:
+        image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+
     # Aqui seria a função de alinhamento baseada em quadrados pretos nos cantos
     # Para simplificação, retornamos a imagem original
     return image
@@ -34,7 +38,7 @@ def show_home():
         st.session_state.base_image = image
         aligned = align_image(np.array(image))
         st.session_state.aligned_base = aligned
-        st.image(imagem_alinhada, channels="BGR", use_container_width=True)
+        st.image(aligned, caption="Imagem Alinhada", use_container_width=True)
 
         st.markdown("---")
         st.subheader("Toque para marcar as alternativas corretas")
@@ -54,7 +58,7 @@ def show_correction():
     if upload_resp:
         image = Image.open(upload_resp).convert("RGB")
         aligned_resp = align_image(np.array(image))
-        st.image(aligned_resp, caption="Gabarito Respondido Alinhado", use_column_width=True)
+        st.image(aligned_resp, caption="Gabarito Respondido Alinhado", use_container_width=True)
 
         st.markdown("---")
         if st.button("Corrigir Gabarito"):
@@ -109,3 +113,4 @@ elif query == "resultado":
     show_results()
 else:
     show_home()
+
