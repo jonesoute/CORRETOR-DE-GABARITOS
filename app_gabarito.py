@@ -20,32 +20,16 @@ if "coords_map" not in st.session_state:
 def advanced_align_image(image):
     if image.shape[0] > image.shape[1]:
         image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-
     height = image.shape[0]
     upper = image[:height // 2, :]
     lower = image[height // 2:, :]
-
     upper_dark = np.sum(cv2.cvtColor(upper, cv2.COLOR_BGR2GRAY) < 50)
     lower_dark = np.sum(cv2.cvtColor(lower, cv2.COLOR_BGR2GRAY) < 50)
-
     if lower_dark > upper_dark:
         image = cv2.rotate(image, cv2.ROTATE_180)
-
     return image
 
-# Detectar círculos na imagem
-def detectar_circulos(imagem):
-    gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
-    gray = cv2.medianBlur(gray, 5)
-    circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp=1.2, minDist=20,
-                               param1=50, param2=30, minRadius=10, maxRadius=20)
-    coords = []
-    if circles is not None:
-        circles = np.round(circles[0, :]).astype("int")
-        for (x, y, r) in circles:
-            coords.append((x, y))
-    return coords
-
+# Página inicial para upload e marcação de gabarito base
 def show_home():
     st.title("📸 Correção de Gabaritos")
     st.markdown("Envie o gabarito base (em branco, sem marcações)")
@@ -57,17 +41,14 @@ def show_home():
         aligned = advanced_align_image(np.array(image))
         st.session_state.aligned_base = aligned
 
-        st.image(aligned, caption="Imagem Alinhada", use_container_width=True)
+        st.image(aligned, caption="Clique sobre as alternativas corretas na imagem abaixo", use_container_width=True)
+        coords = streamlit_image_coordinates(Image.fromarray(aligned), key="gabarito_base_click")
 
-        coords = image_coordinates(aligned, key="gabarito_base_click")
-        if coords is not None:
+        if coords:
             st.session_state.coords_map.append((coords["x"], coords["y"]))
-            st.success(f"Marcado: {coords}")
+            st.success(f"Coordenada registrada: ({coords['x']}, {coords['y']})")
 
         st.markdown("---")
-        st.write("Alternativas marcadas:")
-        st.write(st.session_state.coords_map)
-
         if st.button("Salvar Gabarito Base"):
             st.session_state.correct_answers = st.session_state.coords_map
             st.success("Respostas salvas com sucesso!")
@@ -83,15 +64,12 @@ def show_correction():
         aligned_resp = advanced_align_image(np.array(image))
         st.image(aligned_resp, caption="Gabarito Respondido Alinhado", use_container_width=True)
 
-        user_coords = detectar_circulos(aligned_resp)
-
         st.markdown("---")
         if st.button("Corrigir Gabarito"):
+            respostas_usuario = st.session_state.correct_answers
             corretas = st.session_state.correct_answers or []
-            respostas_usuario = user_coords
-
-            acertos = sum(1 for r in respostas_usuario if any(np.linalg.norm(np.array(r) - np.array(c)) < 15 for c in corretas))
             total = len(corretas)
+            acertos = len(set(respostas_usuario) & set(corretas))
             erros = total - acertos
 
             st.session_state.resultado = {
@@ -99,7 +77,7 @@ def show_correction():
                 "erros": erros,
                 "total": total,
                 "detalhes": [
-                    {"questao": i+1, "marcada": "?", "correta": "?", "status": "Certa" if i < acertos else "Errada"}
+                    {"questao": i+1, "marcada": "A", "correta": "A", "status": "Certa" if i in range(acertos) else "Errada"}
                     for i in range(total)
                 ]
             }
@@ -125,6 +103,7 @@ def show_results():
             st.session_state.pop(key, None)
         st.switch_page("/")
 
+# Roteador simples por URL
 query = st.query_params.get("page", "home")
 if query == "home":
     show_home()
