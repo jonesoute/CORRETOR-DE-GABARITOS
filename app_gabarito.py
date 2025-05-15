@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 from PIL import Image
 import io
-from streamlit_image_coordinates import image_coordinates
+from streamlit_image_coordinates import streamlit_image_coordinates
 
 st.set_page_config(page_title="Corretor de Gabaritos", layout="centered")
 
