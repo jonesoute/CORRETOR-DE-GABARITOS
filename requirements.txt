@@ -1,5 +1,7 @@
 streamlit
 opencv-python-headless
-pillow
 numpy
-streamlit-image-coordinates
+pillow
+streamlit-drawable-canvas
+pandas
+fpdf
