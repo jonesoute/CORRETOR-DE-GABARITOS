@@ -6,22 +6,28 @@ from streamlit_drawable_canvas import st_canvas
 import pandas as pd
 from fpdf import FPDF
 import base64
+import io
 
 # Configuração da página para layout responsivo
 st.set_page_config(page_title="App Gabarito", layout="wide")
-# CSS responsivo
-st.markdown(
-    """
-    <style>
-    img { max-width: 100% !important; height: auto !important; }
-    canvas { max-width: 100% !important; height: auto !important; }
-    .stCanvas > div { width: 100% !important; }
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<style>
+img { max-width: 100% !important; height: auto !important; }
+canvas { max-width: 100% !important; height: auto !important; }
+.stCanvas > div { width: 100% !important; }
+</style>
+""", unsafe_allow_html=True)
 
 st.title("📄 Correção Automática de Gabarito")
 
-# Função para detectar a orientação correta da imagem
+# Função para converter imagem para URL base64
+def image_to_url(img_pil):
+    buffered = io.BytesIO()
+    img_pil.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
+
+# Função para detectar orientação correta da imagem
 def detectar_orientacao(imagem):
     gray = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
@@ -29,15 +35,10 @@ def detectar_orientacao(imagem):
 
     altura, largura = imagem.shape[:2]
     centro_img = (largura // 2, altura // 2)
-    marcadores = []
-    for c in contours:
-        area = cv2.contourArea(c)
-        if 100 < area < 5000:
-            x, y, w, h = cv2.boundingRect(c)
-            marcadores.append((x + w // 2, y + h // 2))
+    marcadores = [(x + w // 2, y + h // 2) for c in contours if 100 < cv2.contourArea(c) < 5000 for x, y, w, h in [cv2.boundingRect(c)]]
 
     if len(marcadores) < 2:
-        return imagem  # Não rotaciona se não achar marcadores
+        return imagem
 
     tl = sum(cx < centro_img[0] and cy < centro_img[1] for cx, cy in marcadores)
     bl = sum(cx < centro_img[0] and cy > centro_img[1] for cx, cy in marcadores)
@@ -52,7 +53,7 @@ def detectar_orientacao(imagem):
         return cv2.rotate(imagem, cv2.ROTATE_90_CLOCKWISE)
     return imagem
 
-# Função para gerar o PDF dos resultados
+# Função para gerar PDF
 def gerar_pdf(df):
     pdf = FPDF()
     pdf.add_page()
@@ -63,12 +64,11 @@ def gerar_pdf(df):
         pdf.cell(0, 8, f"Questão {row['Questão']}: Gabarito ✅ - Resposta {row['Resposta']}", ln=True)
     return pdf.output(dest="S").encode("latin-1")
 
-# --- ETAPA 1: GABARITO BASE ---
+# Etapa 1: Upload da imagem base e número de questões
 st.header("1️⃣ Upload do Gabarito Base")
 num_questoes = st.number_input("Número total de questões:", min_value=1, max_value=200, step=1)
-uploaded_file = st.file_uploader("Gabarito base (em branco):", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Imagem do gabarito base (em branco):", type=["jpg", "jpeg", "png"])
 
-# Estado da sessão para armazenar coordenadas
 if 'coords' not in st.session_state:
     st.session_state.coords = []
 
@@ -78,16 +78,22 @@ if uploaded_file:
     img_corrigida = detectar_orientacao(img_bgr)
     pil_img = Image.fromarray(cv2.cvtColor(img_corrigida, cv2.COLOR_BGR2RGB)).convert("RGB")
 
+    max_width = 350
+    scale = max_width / pil_img.width if pil_img.width > max_width else 1
+    canvas_width = int(pil_img.width * scale)
+    canvas_height = int(pil_img.height * scale)
+
     st.subheader("🖍️ Marque as respostas corretas no gabarito:")
 
     canvas = st_canvas(
         fill_color="rgba(255,0,0,0.3)",
         stroke_width=5,
         background_image=pil_img,
-        height=pil_img.height,
-        width=pil_img.width,
+        background_image_url=image_to_url(pil_img),
+        height=canvas_height,
+        width=canvas_width,
         drawing_mode="point",
-        key="canvas_gabarito"
+        key="canvas1"
     )
 
     if canvas.json_data:
@@ -100,7 +106,7 @@ if uploaded_file:
     if st.button("🗑️ Limpar marcações"):
         st.session_state.coords = []
 
-# --- ETAPA 2: CORREÇÃO DO GABARITO RESPONDIDO ---
+# Etapa 2: Upload da imagem respondida e correção
 if st.session_state.coords and len(st.session_state.coords) == num_questoes:
     st.header("2️⃣ Upload do Gabarito Respondido")
     resp_file = st.file_uploader("Imagem do gabarito respondido:", type=["jpg", "jpeg", "png"], key="resp_gabarito")
@@ -120,17 +126,16 @@ if st.session_state.coords and len(st.session_state.coords) == num_questoes:
             if crop.size == 0:
                 resultados.append("❓")
             else:
-                media = np.mean(crop)
-                resultados.append("✅" if media < 127 else "❌")
+                resultados.append("✅" if np.mean(crop) < 127 else "❌")
 
         st.subheader("📊 Resultados da Correção")
         df_resultados = pd.DataFrame({"Questão": list(range(1, num_questoes + 1)), "Resposta": resultados})
         st.dataframe(df_resultados, use_container_width=True)
         st.success(f"Total de acertos: {resultados.count('✅')} / {num_questoes}")
 
-        st.image(cv2.cvtColor(img_resp_corrigida, cv2.COLOR_BGR2RGB), caption="Gabarito Respondido", use_column_width=True)
+        st.image(cv2.cvtColor(img_resp_corrigida, cv2.COLOR_BGR2RGB), caption="Gabarito Respondido", use_container_width=True)
 
-        # --- ETAPA 3: EXPORTAÇÃO DOS RESULTADOS ---
+        # Etapa 3: Exportação dos resultados
         st.header("3️⃣ Exportar Resultados")
         csv_bytes = df_resultados.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Baixar CSV", csv_bytes, "resultado_gabarito.csv", "text/csv")
