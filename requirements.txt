@@ -5,4 +5,3 @@ pandas==2.2.2
 pillow==10.3.0
 fpdf2==2.7.8
 streamlit-drawable-canvas==0.9.3
-base64io==1.0.0
